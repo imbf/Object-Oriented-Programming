@@ -166,33 +166,284 @@ public class Member{
 
 - **기능을 제공하고 구현 상세를 감춤**
 
-   ```
+   ```java
+   public class Account{
+     private Membership membership;
+     private Date expDate;
+     public boolean hasRegularPermission(){
+       return membership == REGULAR && expDate.isAfter(now())
+     }
+   }
+   
+   if(acc.hasRegularPermission()){
+   	...정회원 기능
+   }
+   
+   //요구사항 변화 => 내부 구현만 변경
+   public class Account{
+     private Membership membership;
+     private Date expDate;
+     public boolean hasRegularPermission(){
+       return membership == REGULAR && 
+         (expDate.isAfter(now()) ||
+          (
+          	serviceDate.isBefore(fiveYearAgo()) &&
+            addMonth(expDate).isAfter(now())
+          )
+         );
+     }
+   }
+   
+   if(acc.hasRegularPermission()){
+   	...정회원 기능
+   }
    
    ```
 
+- **연쇄적인 변경 전파를 최소화**
+
+   - 요구사항의 변화가 내부 구현을 변경 => 캡슐화된 기능을 사용하는 코드 영향 최소화
+
+- **캡슐화 시도 => 기능에 대한 (의도) 이해를 높임**
+
+### 캡슐화를 위한 규칙
+
+- **Tell, Don't Ask**
+
+   - 데이터 달라 하지 말고 해달라고 하기
+
+   ```java
+   if(acc.getMembership() == REGULAR){
+     ... 정회원 기능
+   }
    
+   // 캡슐화
+   if(acc.hasRegularPermission()){
+     ... 정회원 기능
+   }
+   ```
+
+- **Demeter's Law**
+
+   - 메서드에서 생성한 객체의 메서드만 호출
+   - 파라미터로 받은 객체의 메서드만 호출
+   - 필드로 참조하는 객체의 메서드만 호출
+
+   ```java
+   acc.getExpDate().isAfter(now);
+   // Demeter's Law 적용
+   acc.isExpired();
+   
+   //////////////////////////////////
+   Date date = acc.getExpDate();
+   date.isAfter(now);
+   //Demeter's Law 적용
+   acc.isValid(now);
+   ```
+
+### 정리
+
+**캡슐화 : 기능의 구현을 외부에 감춤**
+
+**캡슐화를 통해 기능을 사용하는 코드에 영향을 주지 않고 (또는 최소화) 내부 구현을 변경할 수 있는 유연함**
+
+---
+
+## 캡슐화 연습
+
+캡슐화 연습1 (캡슐화 이전 코드)
+
+```java
+public AuthResult authenticate(String id, String pw){
+  Member mem = findOne(id);
+  if ( mem == null ) return AuthResult.NO_MATCH;
+  
+  if( mem.getVerificationEmailStatus() != 2){	// Tell, Dont' Ask의 원칙을 통해 캡슐화 가능한 코드
+    return AuthResult.NO_EMAIL_VERIFIED;
+  }
+  if(passwordEncoder.isPasswordValid(mem.getPassword(), pw, mem.getID())){
+    return AuthResult.SUCCESS;
+  }
+  return AuthResult.NO_MATCH;
+}
+```
+
+캡슐화 연습1 (캡슐화 완성 코드)
+
+```java
+public class Member{
+  private int verificationEmailStatus;
+  
+  public boolean isEmailVerified(){	//캡슐화를 진행한 코드
+    return verificationEmailStatus == 2;
+  }
+}
+
+public AuthResult authenticate(String id, String pw){
+  Member mem = findOne(id);
+  if ( mem == null ) return AuthResult.NO_MATCH;
+  
+  if(!mem.isEmailVerified()){	// 캡슐화를 진행한 코드
+    return AuthResult.NO_EMAIL_VERIFIED;
+  }
+  if(passwordEncoder.isPasswordValid(mem.getPassword(), pw, mem.getID())){
+    return AuthResult.SUCCESS;
+  }
+  return AuthResult.NO_MATCH;
+}
+```
+
+캡슐화 연습 2 ( 캡슐화 이전 코드 )
+
+```java
+public class Rental{
+  private Movie movie;
+  private int daysRented;
+  
+  public int getFrequentRenterPoints(){
+    if(movie.getPriceCode() == Movie.NEW_RELEASE && daysRented > 1)
+      return 2;
+    else
+      return 1;
+  }
+	...
+}
+
+public class Movie{
+  public static int REGULAR = 0;
+  public static int NEW_RELEASE = 1;
+  private int priceCode;
+  
+  public int getPriceCode(){
+    return priceCode;
+  }
+  ...
+}
+```
+
+캡슐화 연습 2 (캡슐화 완성 코드)
+
+```java
+public class Rental{
+  private Movie movie;
+  private int daysRented;
+  
+  public int getFrequentRenterPoints(){
+		return movie.getFrequentRenterPoints(dayRented);
+  }
+	...
+}
+
+public class Movie{
+  public static int REGULAR = 0;
+  public static int NEW_RELEASE = 1;
+  private int priceCode;
+  
+  public int getFrequentRenterPoints(int daysRented){
+    if(priceCode == NEW_RELEASE && daysRented >1)
+      return 2;
+    else
+      return 1;
+  }
+  ...
+}
+```
+
+캡슐화 연습 3 (캡슐화 이전 코드)
+
+```java
+public class Timer{
+  public long startTime;
+  public long stopTime;
+}
+
+Timer t = new Timer();
+t.startTime = System.currentTimeMillis();
+
+...
+  
+
+t.stopTime = System.currentTimeMillis();
+
+long elaspedTime = t.stopTime - t.startTime;
+```
+
+캡슐화 연습 3 (캡슐화 완성 코드)
+
+```java
+public class Timer{
+  private long startTime;
+  private long stopTime;
+  
+  public void start(){
+    this.startTime = System.currentTimeMillis();
+  }
+  
+  public void stop(){
+    this.stopTime = System.currentTimeMillis();
+  }
+  
+  public long elapsedTime(TimeUnit unit){
+    switch(unit){
+      case MILLISECOND:
+        return stopTime - startTime;
+     	...
+    }
+  }
+}
+
+Timer t = new Timer();
+t.start();
 
 
 
+t.stop();
+long time = t.elapsedTime(MILLISECOND);
+```
+
+캡슐화 연습 4 (캡슐화 이전 코드)
+
+```java
+public void verifyEmail(String token){
+  Member mem = findByToken(token);
+  if ( mem == null ) throw new BadTokenException();
+  if(mem.getVerificationEmailStatus() == 2){	// Tell, Don't Ask에 의해서 변경가능
+    throw new AlreadyVerifiedException();
+  } else {
+    mem.setVerificationEmailStatus(2);				// 무언가가 캡슐화가 필요한 것 같다.
+  }
+  // ... 수정사항 DB 반영
+}
+```
+
+캡슐화 연습 4 (캡슐화 완성 코드)
+
+```java
+public class Member{
+  private int verificationEmailStatus;
+  
+  public void verifyEmail(){
+    if(isEmailVerified())
+      throw new AlreadyVerifiedException();
+    else
+      this.verificationEmailStatus =2;
+  }
+  
+  public boolean isEmailVerified(){
+    return verificationEmailStatus == 2;
+  }
+}
 
 
+public void verifyEmail(String token){
+  Member mem = findByToken(token);
+  if ( mem == null ) throw new BadTokenException();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  mem.verifyEmail();
+  
+  // ... 수정사항 DB 반영
+}
+```
 
 
 
