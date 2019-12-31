@@ -445,9 +445,269 @@ public void verifyEmail(String token){
 }
 ```
 
+---
 
+## 다형성과 추상화
 
+### 다형성(polymorphism)
 
+- **여러(poly) 모습(morph)을 갖는 것**
+- **객체 지향에서는 한 객체가 여러 타입을 갖는 것**
+   - 즉 한 객체가 여러 타입의 기능을 제공
+   - 타입 상속으로 다형성 구현
+      - 하위 타입은 상위 타입도 됨
+
+### 추상화(Abstraction)
+
+- **데이터나 프로세스 등을 의미가 비슷한 개념이나 의미 있는 표현으로 정의하는 과정**
+- **두 가지 방식의 추상화**
+   - 특정한 성질, 공통 성질 (일반화)
+
+### 타입 추상화(Type Abstraction)
+
+- **여러 구현 클래스를 대표하는 상위 타입 도출**
+   - 흔히 인터페이스 타입으로 추상화
+   - 추상화 타입과 구현은 타입 상속으로 연결
+
+### 추상 타입 사용
+
+- 추상 타입을 이용한 프로그래밍
+
+   ```java
+   Noifier notifier = getNotifier(...);
+   notifier.notify(someNoti);
+   ```
+
+- 추상 타입은 구현을 감춤
+
+   - 기능의 구현이 아닌 의도를 더 잘 드러냄
+
+### 추상 타입 사용에 따른 이점 : 유연함
+
+- 사용할 대상 접근도 추상화
+
+### 추상화는 의존 대상이 변경하는 시점에
+
+- 추상화 -> 추상 타입 증가 -> 복잡도 증가
+
+   - 아직 존재하지 않는 기능에 대한 이른 추상화는 주의: 잘못된 추상화 가능성, 복잡도만 증가
+   - 실제 변경, 확장이 발생할 때 추상화 시도
+
+   ```java
+   // 기존 코드
+   public class OrderService{
+     private MailSender sender;
+     
+     public void order(...){
+       // ...
+       sender.send(message);
+     }
+   }
+   // 기존 코드에 요구사항 추가
+   public class OrderService{
+     private MailSender sender;
+     private SmsService smsService;
+     
+     public void order(...){
+       // ...
+       sender.send(message);
+       // ...
+       smsService.send(smsMsg);
+     }
+   }
+   // 추상화
+   public class OrderService{
+     private Notifier notifier;
+     
+     public void order(...){
+       // ...
+       notifier.notify(noti);
+     }
+   }
+   ```
+
+### 추상화를 잘 하려면
+
+- **구현을 한 이유가 무엇 때문인지 생각해야 함**
+
+---
+
+## 추상화 예시
+
+### 예시
+
+- 기능 예시
+   - 클라우드 파일 통합 관리 기능 개발
+   - 대상 클라우드
+      - 드롭박스, 박스
+   - 주요 기능
+      - 각 클라우드의 파일 목록 조회, 다운로드, 업로드, 삭제, 검색
+
+**추상화하지 않은 구현: 파일 목록 조회**
+
+```java
+public enum CloutId{
+  DROPBOX,
+  BOX;
+}
+////////////////////////////////
+public class FileInfo{
+  private CloudId cloudId;
+  private String fileId;
+  private String name;
+  private long length;
+  
+  //... get 메서드
+}
+///////////////////////////////
+public class CloudFileManager{
+  public List<FileInfo> getFileInfos(CloudId cloudId){	// 파일 목록을 제공하는 메소드
+    if(cloudId == CloudId.DROPBOX){
+      DropboxClient dc = ...;
+      List<DBFile> dbFiles = db.getFiles();
+      List<FileInfo> result = new ArrayList<>();	// FileInfo로 변환하는 코드
+      for(DbFile dbFile : dbFiles){
+        FileInfo fi = new FileInfo();
+        fi.setCloudId(CloudId.DROPBOX);
+        fi.setFileId(fi.getFileId());
+        //...
+        result.add(fi);
+      }
+      return result;
+    } else if(cloudId == CloudId.BOX){	//CloudId가 BOX이면 실행하는 코드
+      BoxService boxSvc = ...;
+      //...
+    }
+  }
+  	
+  public void download(FileInfo file, File localTarget){	// 파일을 다운로드하는 메소드
+    									// 파일정보					// 파일저장위치
+    if(file.getCloudId() == CloudId.DROPBOX){ // 클라우드Id의 식별자에 따라 분기하는 메서드
+      DropboxClient dc = ...;
+      FileOutputStream out = new FileOutputStream(localTarget);	// 데이터를 저장할 변수
+      dc.copy(file.getFileId(), out);
+      out.close();
+    } else if (file.getCloudId() == CloudId.Box){
+      BoxService boxSvc = ...;
+      InputStream is = boxSvc.getInputStream(file.getId());
+      FileOutputStream out = new FileOutputStream(localTarget);
+      CopyUtil.copy(is, out);
+    }
+  }
+  public FileInfo upload(File file, CloudId cid){ // 파일을 업로드하는 메소드 (분기는 계속)
+    if ( cid == CloudId.DROPBOX){
+      ...
+    } else if ( cid == CloudId.BOX){
+      ...
+    }
+  }
+  public List<FileInfo> getFileInfos(CloudId cloudId){	// 클라우드 추가 메서드
+    if(cloudId == CloudID.DROPBOX){
+      // ...
+    } else if(cloudId == CloudId.BOX){
+      // ...
+    } else if(cloudId == CloudId.SCloud){
+      // ...
+    } else if(cloudId == CloudId.NCLOUD){
+      // ...
+    } else if(cloudId == CloudId.DCLOUD){
+      // ...
+    }
+  }
+  // download(), upload(), delete(), search()도 유사한 else-if 블록 추가
+  // ...
+  public FileInfo copy(FileInfo fileInfo, CloudId to){ // 클라우드 간 복사
+    //fileInfo 에 해당하는 파일을 to에 복사해라
+    CloudId from = fileInfo.getClouId();
+    if( to == CloudId.DROPBOX){
+      DropBoxClient dbClient = ...;
+      if( from == CloudId.BOX){
+        dbClient.copyFromUrl("http://www.box.com/files/" + fileInfo.getFileId());
+      }else if(from == CloudId.SCLOUD){
+        ScloudClient sClient = ...;
+        //...
+      }//...
+    } 
+    
+  }
+  // ...
+}
+```
+
+추상화후 코드
+
+```java
+public class DropBoxFileSystem implements CloudFileSystem{
+  private DropBoxClient dbClient = new DropBoxClient(...);
+  
+  @Override
+  public List<CloudFile> getFiles(){
+    List<DbFile> dbFiles = dbClient.getFiles();
+    List<CloudFile> results = new ArrayList<>(dbFiles.size());
+    for(DbFile file : dbFiles){
+      DropBoxCloudFile cf = new DropBoxCloudFile(file, dbClient);
+      results.add(cf);
+    }
+    return results;
+  }
+}
+public class DropBoxCloudFile implements CloudFile{
+  private DropBoxClient dbClient;
+  private DbFile dbFile;
+  
+  public DropBoxCloutFile(DbFile dbFile, dbclient){
+    this.dbFile = dbFile;
+    this.dbClient = dbClient;
+  }
+  public String getId(){
+    return dbFile.getId();
+  }
+  public boolean hasUrl(){
+    return true;
+  }
+  public String getUrl(){
+    return dbFile.getFileUrl();
+  }
+  public String getName(){
+    return dbFile.getFileName();
+  }
+  public InputStream getInputStream(){
+    return dbClient.createStreamOfFile(dbFile);
+  }
+  public void write(OutputStream out){
+    //...
+  }
+  public void delete(){
+    dbClient.deleteFile(dbFile.getId());
+  }
+  //...
+}
+
+public List<CloudFile> getFileInfos(CloudId cloudId){	//파일 목록
+  CloudFileSystem fileSystem = CloudFileSystemFactory.getFileSystem(cloudId);
+  return fileSystem.getFiles();
+}
+
+public void download(CloudFile file, File localTarget){	//파일 다운로드
+  file.write(new FileOutputStream(localTarget));
+}
+
+public void copy(CloudFile file, CloudId target){	// 파일 복사 기능
+  CloudFileSystem fileSystem = CloudFileSYstemFactory.getFileSystem(target);
+  fileSystem.copyFrom(file);
+}
+```
+
+### 추상화 결과
+
+- 코드 수정없이 새로운 클라우드 지원 추가
+- 이것이 바로 OCP(Open - Closed Principle) : 확장에는 열려 있음(Open for Extenstion), 수정엔 닫혀 있음(Closed for Modification)
+
+### 개발 시간 증가 이유
+
+- 코드 구조가 길어지고 복잡해짐
+- 관련 코드가 여러 곳에 분산됨
+- 결과적으로, 코드 가독성과 분석 속도 저하
 
 
 
