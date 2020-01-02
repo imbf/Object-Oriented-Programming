@@ -640,11 +640,11 @@ public class CloudFileManager{
 추상화후 코드
 
 ```java
-public class DropBoxFileSystem implements CloudFileSystem{
+public class DropBoxFileSystem implements CloudFileSystem{	//DROPBOX용 cloudFIleSystem
   private DropBoxClient dbClient = new DropBoxClient(...);
   
   @Override
-  public List<CloudFile> getFiles(){
+  public List<CloudFile> getFiles(){	// 실제로는 요소가 CloudFile인 List를 리턴한다.
     List<DbFile> dbFiles = dbClient.getFiles();
     List<CloudFile> results = new ArrayList<>(dbFiles.size());
     for(DbFile file : dbFiles){
@@ -700,12 +700,14 @@ public void copy(CloudFile file, CloudId target){	// 파일 복사 기능
   CloudFileSystem fileSystem = CloudFileSYstemFactory.getFileSystem(target);
   fileSystem.copyFrom(file);
 }
+
+// BoxCloud추가를 위해서 Concrete Class를 추가한다.
 ```
 
 ### 추상화 결과
 
-- 코드 수정없이 새로운 클라우드 지원 추가
-- 이것이 바로 OCP(Open - Closed Principle) : 확장에는 열려 있음(Open for Extenstion), 수정엔 닫혀 있음(Closed for Modification)
+- **코드 수정없이 새로운 클라우드 지원 추가**
+- **이것이 바로 OCP(Open - Closed Principle: 개방 폐쇄 원칙) : 확장에는 열려 있음(Open for Extenstion), 수정엔 닫혀 있음(Closed for Modification)** => 변경이나 확장하는 비용을 낮춰주게 한다.
 
 ### 개발 시간 증가 이유
 
@@ -716,6 +718,419 @@ public void copy(CloudFile file, CloudId target){	// 파일 복사 기능
 - 결과적으로, 코드 가독성과 분석 속도 저하
    - 코드 추가에 따른 노동 시간 증가
    - 실수하기 쉽고 이루 인한 불필요한 디버깅 시간 증가
+
+---
+
+## 상속보다는 조립
+
+### 상속과 재사용
+
+- 상속은 상위 클래스의 기능을 재사용, 확장하는 방법으로 활용하나
+
+### 상속을 통한 기능 재사용시 발생할 수 있는 단점
+
+- **상위 클래스 변경 어려움**
+   - 변경의 여파가 계층도를 따라 하위 클래스로 전파됨 -> 상위 클래스 변경 어려움
+- **클래스 증가**
+   - 무언가가 새로운 조합이 생길 때마다 클래스들이 증가된다.
+- **상속 오용**
+
+### 상속의 단점 해결 방법 -> 조립
+
+- 조립(Composition)
+   - 여러 객체를 묶어서 더 복잡한 기능을 제공
+   - 보통 필드로 다른 객체를 참조하는 방식으로 조립 또는 객체를 필요 시점에 생성/구함
+
+### 조립을 통한 기능 재사용
+
+```java
+public class Container extends ArrayList<Luggage>{	// 상속
+  private int maxSize;
+  private int currentSize;
+  // ...
+  public void put(Luggage lug){
+    if(!canContain(lug))
+      throw new NotEnoughSpaceException();
+    super.add(lug);
+    currentSize += lug.size();
+  }
+  // ...
+}
+
+// 조립을 통한 기능 재사용
+public class Container{
+  private int maxSize;
+  private int currentSize;
+  private List<Luggage> luggages = new ArrayList();	// 조립
+  //...
+  public void put(Luggage lug){
+    if(!canContain(lug))
+      throw new NotEnoughSpaceException();
+    luggages.add(lug);
+  }
+}
+```
+
+### 상속보다는 조립(Composition over inheritance)
+
+- 상속하기에 앞서 조립으로 풀 수 없는지 검토
+- 진짜 하위 타입인 경우에만 상속 사용
+
+---
+
+## 기능과 책임 분리
+
+### 기능 분해
+
+- **기능은 하위 기능으로 분해**
+
+### 기능을 누가 제공할 것인가?
+
+- **기능은 곧 책임**
+   - 분리한 각 기능을 알맞게 분배
+
+### 하위 기능 사용
+
+```java
+// 본 기능을 여러개로 분리해서 기능을 조합해서 사용
+public class ChangePasswordService{
+  public Result changePassword(String id, String oldPw, String newPw){
+  	Member mem = memberRepository.findOne(id);
+    if(mem==null){
+      return Result.NO_MEMBER;
+    }
+    try{
+      mem.changePassword(oldPw newPw);
+      return REsult.SUCCESS;
+    } catch(BadPasswordException ex){
+      return Result.BAD_PASSWORD;
+    }
+  }
+  
+}
+```
+
+### 큰 클래스, 큰 메서드
+
+- **클래스나 메서드가 커지면 절차 지향의 문제 발생**
+   - 큰 클래스 -> 많은 필드를 많은 메서드가 공유
+   - 큰 메서드 -> 많은 변수를 많은 코드가 공유
+   - 여러 기능이 한 클래스/메서드에 섞여 있을 가능성
+- **책임에 따라 알맞은 객체로 코드 분리 필요**
+
+### 책임 분배/분리 방법
+
+- **패턴 적용**
+   - 전형적인 역할 분리
+      - 간단한 웹
+         - 컨트롤러, 서비스, DAO
+      - 복잡한 도메인
+         - 엔티티, 밸류, 리포지토리, 도메인 서비스
+      - AOP
+         - Aspect(공통 기능)
+      - GoF
+         - 팩토리, 빌더, 전략, 템플릿 메서드, 프록시/데코레이터 등
+- **계산 기능 분리**
+- **외부 연동 분리** : 네트워크, 메시징, 파일 등 연동 처리 코드 분리
+- **조건별 분기는 추상화** : 연속적인 if-else부분이 있다면 추상화 고민
+
+### 주의 : 의도가 잘 드러나는 이름 사용
+
+### 역할 분리와 테스트
+
+- 역할 분리가 잘 되면 테스트도 용이해짐 (전체 기능이 아닌 특정 일부 기능만 테스트 하는 것이 용이해진다.)
+
+### 분리 연습
+
+**분리 연습1**
+
+```java
+public class CashClient{
+  private SecretKeySpec KeySpec;
+  private IvParameterSpec ivSpec;
+  
+  private Res post(Req req){
+    String reqBody = toJson(req);	//JSON 변형 API
+    
+    //암호화
+    Cipher cipher = Cipher.getInstance(DEFAULT_TRANSFORM);
+    cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
+    String encReqBody = new String(Base64.getEncoder().encode(cipher.doFinal(reqBody)));
+    //보낸 결과를 받는다.
+    ResponseEntitiy<String> responseEntitiy = restTemplate.postForEntitiy(api, encReqBody, String.class);
+    //응답의 body
+    String encRespBody = responseEntitiy.getBody();
+    //응답의 body를 복호화
+    Cipher cipher2 = Cipher.getInstance(DEFAULT_TRANSFORM);
+    cipher2.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+    String respBody = new String(cipher.doFinal(Base64.getDecoder().decode(encRespBody)));
+    //다시 repository로 바꾸어주는 것
+    return jsonToObj(respBody);
+  }
+}
+// 우리는 암호화, 복호화하는 부분을 분리할 수 있다. ( Cryptor 메서드 사용 )
+
+public class Cryptor{
+  private SecretKeySpec KeySpec;
+  private IvParameterSpec ivSpec;
+  
+  //암호화 기능
+  public String encrypt(String plain){
+    Cipher cipher = Cipher.getInstance(DEFAULT_TRANSFORM);
+    cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
+    return new String(Base64.getEncoder().encode(cipher.doFinal(plain)));
+  }
+  
+  //복호화 기능
+  public String decrypt(String encrypted){
+    CIpher cipher2 = Cipher.getInstance(DEFAULT_TRANSFORM);
+    cipher2.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+    return new String(cipher.doFinal(BAse64.getDecode().decode(encrypted)));
+  }
+}
+
+public class CashClient{
+  private Cryptor cryptor;
+  
+  private Res post(Req req){
+    String reqBody = toJson(req);
+    
+    String encReqBody = cryptor.encrypt(reqBody);
+    
+    ResponseEntitiy<STring> responseEntitiy = restTemplate.postForEntity(api, encReqBody, String.class);
+    String encRespBody = responseEntitiy.getBody();
+    
+    String respBody = cryptor.decrypt(encRespBody);
+    
+    return jsonToObj(respBody);
+  }
+}
+
+
+
+```
+
+**분리 연습2**
+
+```java
+public class Movie {
+  public static int REGULAR = 0;
+  public static int NEW_RELEASE = 1;
+  private int priceCode;
+  
+  public int getPriceCode(){
+    return priceCode;
+  }
+}
+
+public class Rental{
+  private Movie movie;
+  private int daysRented;
+  
+  public int getFrequentREnterPoints(){
+    if(movie.getPriceCode() == Movie.New_RELEASE && daysRented > 1) //추상화	필요
+      return 2;
+    else
+      return 1;
+  }
+}
+
+// ...
+public abstract class Movie{
+  public abstract int getFrequentRenterPoints(int daysRented);
+  //...
+}
+
+public class NewReleaseMovie extends Movie{
+  public int getFrequentRenterPoints(int daysRented){
+    return daysRented > 1 ? return 2 : 1;
+  }
+}
+
+public class RegularMovie extends Movie{
+  public int getFrequentRenterPoints(int daysRented){
+    return 1;
+  }
+}
+
+public class Rental{
+  private Movie movie;
+  private int daysRented;
+  
+  public int getFrequentRenterPoints(){
+    return movie.getFrequendRenterPoints(daysRented);
+  }
+  //...
+}
+```
+
+---
+
+## 의존과 DI
+
+### 의존
+
+- **기능 구현을 위해 다른 구성 요소를 사용하는 것**
+   - 의존의 예 : 객체 생성, 메서드 호출, 데이터 사용
+- **의존은 변경이 전파될 가능성을 의미**
+   - 의존하는 대상이 바뀌면 바뀔 가능성이 높아짐
+
+### 순환 의존
+
+- 순환 의존 -> 변경 연쇄 전파 가능성
+   - 클래스, 패키지, 모듈 등 모든 수준에서 순환 의존 없도록 한다.
+
+### 의존 대상 많을 때
+
+- 기능 별로 분리를 고려해야한다.
+- 몇 가지 의존 대상을 단일 기능으로 묶어서 생각해보면 의존 대상을 줄일 수 있음
+
+### 의존 대상 객체를 직접 생성하면?
+
+- 생성 클래스가 바뀌면 의존하는 코드도 바뀜
+   - 추상화에서 언급
+- 의존 대상 객체를 직접 생성하지 않는 방법
+   - 팩토리, 빌더
+   - 의존 주입(Dependency Injection)
+   - 서비스 로케이터(Service Locator)
+
+### 의존 주입(Dependency Injection)
+
+- 외부에서 의존 객체를 주입
+
+   - 생성자나 메서드를 이용해서 주입
+
+      ```java
+      public class ScheduleService{
+        private UserRepository repository;
+        private Calculator cal;
+        
+        public ScheduleService(UserRepository repository){
+          this.repository = repository;
+        }
+        
+        public void setCalculator(Calculator cal){
+          this.cal = cal;
+        }
+      }
+      
+      //초기화 코드
+      UserRepository userRepo = new DbUserRepository();
+      Calculator cal = new Calculator();
+      
+      ScheduleService schSvc = new ScheduleService(userRepo);
+      schSvc.setCalculator(cal);
+      ```
+
+### 조립기(Assembler)
+
+- 조립기가 객체 생성, 의존 주입을 처리
+
+   - 예: 스프링 프레임워크
+
+   ```java
+   @Configuration
+   public class Config{
+     @Bean
+     public ScheduleService scheuleSvc(){
+       ScheduleService svc = new ScheduleService(repo());
+       svc.setCalculator(expCal());
+       return svc;
+     }
+     
+     @Bean
+     public UserRepository repo() {
+       //...
+     }
+     
+    	@Bean
+     public Calculator expCal() {
+       //...
+     }
+   }
+   
+   // 초기화
+   ctx = new AnnotationConfigApplicationContenxt(Config.class);	//스프링 제공 조립기
+   
+   // 사용할 객체 구함
+   ScheduleService svc = ctx.getBean(ScheduleService.class);
+   
+   //사용
+   svc.getSchedule(..);
+   ```
+
+### 의존성 주입의 장점
+
+1. **상위 타입을 사용할 경우 의존 대상이 바뀌면 조립기(설정)만 변경하면 됨**
+2. **의존하는 객체 없이 대역 객체를 사용해서 테스트 가능**
+   - 대역 객체를 사용하면 초기화가 가능하기 때문에 다양한 경우의 수 테스트 가능
+
+### DI를 습관처럼 사용하기
+
+- **의존 객체는 주입받고록 코드 작성하는 습관 기르기**
+
+### 다음 학습 추천
+
+- 복습
+- TDD (개발 속도, 좋은 설계 가능성 높여줌)
+- 함수형 프로그래밍 기초(비용을 낮춰주는 다른 방법)
+- 각 패러다임의 설계 패턴(지식/지혜 재사용)
+- UML(도식화)
+
+---
+
+## DIP 
+
+### 고수준 모듈, 저수준 모듈
+
+- **고수준 모듈**
+   - 의미 있는 단일 기능을 제공
+   - 상위 수준의 정책 구현
+- **저수준 모듈**
+   - 고수준 모듈의 기능을 구현하기 위해 필요한 하위 기능의 실제 구현
+
+### 고수준이 저수준에 직접 의존하면
+
+- 저수준 모듈 변경 -> 고수준 모듈에 영향
+
+### DIP(Dependency Inversion Principle)
+
+- **의존 역전 원칙**
+   - 고수준 모듈은 저수준 모듈의 구현에 의존하면 안 됨
+   - 저수준 모듈이 고수준 모듈에서 정의한 추상타입에 의존해야 함
+
+### 고수준 관점에서 추상화
+
+- **고수준 입장에서 저수준 모듈을 추상화**
+   - 구현 입장에서 추상화하지 말 것
+
+### DIP는 유연함을 높임
+
+- 고수준 모듈의 변경을 최소화하면서 저수준 모듈의 변경 유연함을 높임
+
+### 부단한 추상화 노력 필요
+
+- 처음부터 바로 좋은 설계가 나오지는 않음
+   - 요구사항/업무 이해가 높아지면서 저수준 모듈을 인지하고 상위 수준 관점에서 저수준 모듈에 대한 추상화 시도
+
+### 연습
+
+- 상품 상세 정보와 추천 상품 목록 제공 기능
+   - 상품 번호를 이용해서 상품 DB에서 상세 정보를 구함
+   - Daara API를 이용해서 추천 상품 5개 구함
+   - 추천 상품이 5개 미만이면 같은 분류에 속한 상품 중 최근 한달 판매가 많은 상품을 ERP에서 구해서 5개를 채움
+- 고수준
+   - 상품 번호로 상품 상세 정보 구함
+   - 추천 상품 5개 구함
+   - 인기 상품 구함
+- 저수준
+   - DB에서 상세 정보 구함
+   - Daara API에서 상품 5개 구함
+   - 같은 분류에 속한 상품에서 최근 한달 판매가 많은 상품 ERP에서 구함
+
+
+
+
 
 
 
