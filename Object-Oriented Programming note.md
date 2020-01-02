@@ -543,15 +543,15 @@ public void verifyEmail(String token){
    - 주요 기능
       - 각 클라우드의 파일 목록 조회, 다운로드, 업로드, 삭제, 검색
 
-**추상화하지 않은 구현: 파일 목록 조회**
+**추상화하지 않은 구현**
 
 ```java
-public enum CloutId{
+public enum CloudId{
   DROPBOX,
   BOX;
 }
 ////////////////////////////////
-public class FileInfo{
+public class FileInfo{	//특정 파일 정보를 표현하기 위한 클래스
   private CloudId cloudId;
   private String fileId;
   private String name;
@@ -562,7 +562,7 @@ public class FileInfo{
 ///////////////////////////////
 public class CloudFileManager{
   public List<FileInfo> getFileInfos(CloudId cloudId){	// 파일 목록을 제공하는 메소드
-    if(cloudId == CloudId.DROPBOX){
+    if(cloudId == CloudId.DROPBOX){	// cloudId가 DROPBOX이면
       DropboxClient dc = ...;
       List<DBFile> dbFiles = db.getFiles();
       List<FileInfo> result = new ArrayList<>();	// FileInfo로 변환하는 코드
@@ -585,7 +585,7 @@ public class CloudFileManager{
     if(file.getCloudId() == CloudId.DROPBOX){ // 클라우드Id의 식별자에 따라 분기하는 메서드
       DropboxClient dc = ...;
       FileOutputStream out = new FileOutputStream(localTarget);	// 데이터를 저장할 변수
-      dc.copy(file.getFileId(), out);
+      dc.copy(file.getFileId(), out);	// local에 복사하는 코드
       out.close();
     } else if (file.getCloudId() == CloudId.Box){
       BoxService boxSvc = ...;
@@ -593,7 +593,8 @@ public class CloudFileManager{
       FileOutputStream out = new FileOutputStream(localTarget);
       CopyUtil.copy(is, out);
     }
-  }
+  } 
+  
   public FileInfo upload(File file, CloudId cid){ // 파일을 업로드하는 메소드 (분기는 계속)
     if ( cid == CloudId.DROPBOX){
       ...
@@ -601,6 +602,8 @@ public class CloudFileManager{
       ...
     }
   }
+  
+  // 지원하는 클라우드 추가 (S 클라우드, N 클라우드, D 클라우드)
   public List<FileInfo> getFileInfos(CloudId cloudId){	// 클라우드 추가 메서드
     if(cloudId == CloudID.DROPBOX){
       // ...
@@ -617,7 +620,7 @@ public class CloudFileManager{
   // download(), upload(), delete(), search()도 유사한 else-if 블록 추가
   // ...
   public FileInfo copy(FileInfo fileInfo, CloudId to){ // 클라우드 간 복사
-    //fileInfo 에 해당하는 파일을 to에 복사해라
+    																		//fileInfo 에 해당하는 파일을 to에 해당하는 클라우드에 복사해라
     CloudId from = fileInfo.getClouId();
     if( to == CloudId.DROPBOX){
       DropBoxClient dbClient = ...;
@@ -627,7 +630,7 @@ public class CloudFileManager{
         ScloudClient sClient = ...;
         //...
       }//...
-    } 
+    }
     
   }
   // ...
@@ -651,6 +654,7 @@ public class DropBoxFileSystem implements CloudFileSystem{
     return results;
   }
 }
+
 public class DropBoxCloudFile implements CloudFile{
   private DropBoxClient dbClient;
   private DbFile dbFile;
@@ -706,8 +710,14 @@ public void copy(CloudFile file, CloudId target){	// 파일 복사 기능
 ### 개발 시간 증가 이유
 
 - 코드 구조가 길어지고 복잡해짐
+   - 중첩 if-else는 복잡도 배로 증가
+   - if-else가 많을수록 진척 더딤 (신중 모드)
 - 관련 코드가 여러 곳에 분산됨
 - 결과적으로, 코드 가독성과 분석 속도 저하
+   - 코드 추가에 따른 노동 시간 증가
+   - 실수하기 쉽고 이루 인한 불필요한 디버깅 시간 증가
+
+
 
 
 
